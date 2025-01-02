@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>手写数字识别</title>
+        <style>
+            table {
+                border-collapse: collapse;
+            }
+            td {
+                width: 10px;
+                height: 10px;
+                border: 1px solid #ccc;
+                background-color: white;
+            }
+            #result {
+                margin-top: 20px;
+                font-size: 24px;
+                font-weight: bold;
+            }
+            #data-display {
+                margin-top: 20px;
+                font-family: monospace;
+                white-space: pre-wrap;
+                background-color: #f5f5f5;
+                padding: 10px;
+                border: 1px solid #ccc;
+                max-height: 100px;
+                overflow-y: auto;
+            }
+            .copy-button {
+                margin-top: 10px;
+                padding: 5px 10px;
+                font-size: 14px;
+                cursor: pointer;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>手写数字识别</h1>
+        <table id="canvas">
+            <!-- 28x28表格 -->
+            <script>
+                for (let i = 0; i < 28; i++) {
+                    document.write("<tr>");
+                    for (let j = 0; j < 28; j++) {
+                        document.write(`<td id="cell-${i}-${j}"></td>`);
+                    }
+                    document.write("</tr>");
+                }
+            </script>
+        </table>
+        <button id="recognize">识别</button>
+        <button id="clear">清空</button>
+        <div id="result"></div>
+        <div id="data-display"></div>
+        <button class="copy-button" id="copy-button">Copy Data</button>
+
+        <script>
+            // 获取表格和所有单元格
+            const canvas = document.getElementById("canvas");
+            const cells = canvas.getElementsByTagName("td");
+
+            // 标记是否正在绘制
+            let isDrawing = false;
+
+            // 鼠标按下时开始绘制
+            canvas.addEventListener("mousedown", (e) => {
+                if (e.target.tagName === "TD") {
+                    isDrawing = true;
+                    paintCell(e.target, 1); // 中心单元格为黑色
+                    paintNeighbors(e.target); // 相邻单元格为随机灰色
+                }
+            });
+
+            // 鼠标移动时绘制
+            canvas.addEventListener("mousemove", (e) => {
+                if (isDrawing && e.target.tagName === "TD") {
+                    paintCell(e.target, 1); // 中心单元格为黑色
+                    paintNeighbors(e.target); // 相邻单元格为随机灰色
+                }
+            });
+
+            // 鼠标松开时停止绘制
+            canvas.addEventListener("mouseup", () => {
+                isDrawing = false;
+            });
+
+            // 绘制单元格
+            function paintCell(cell, intensity) {
+                const currentIntensity = parseFloat(
+                    cell.style.backgroundColor?.split(",")[3] || 0,
+                );
+                if (intensity > currentIntensity) {
+                    cell.style.backgroundColor = `rgba(0, 0, 0, ${intensity})`;
+                }
+            }
+
+            // 绘制相邻单元格
+            function paintNeighbors(cell) {
+                const id = cell.id.split("-");
+                const i = parseInt(id[1]);
+                const j = parseInt(id[2]);
+
+                for (let x = -1; x <= 1; x++) {
+                    for (let y = -1; y <= 1; y++) {
+                        if (x === 0 && y === 0) continue; // 跳过中心单元格
+                        const neighbor = document.getElementById(
+                            `cell-${i + x}-${j + y}`,
+                        );
+                        if (neighbor) {
+                            const randomIntensity = Math.random() * 0.4 + 0.3; // 随机灰度值 (0.3 ~ 0.7)
+                            paintCell(neighbor, randomIntensity);
+                        }
+                    }
+                }
+            }
+
+            // 清空画布
+            document.getElementById("clear").addEventListener("click", () => {
+                for (let i = 0; i < 28; i++) {
+                    for (let j = 0; j < 28; j++) {
+                        const cell = document.getElementById(`cell-${i}-${j}`);
+                        cell.style.backgroundColor = "white";
+                    }
+                }
+                document.getElementById("result").innerText = "";
+                document.getElementById("data-display").innerText = "";
+            });
+
+            // 识别按钮点击事件
+            document
+                .getElementById("recognize")
+                .addEventListener("click", () => {
+                    const data = [];
+                    for (let i = 0; i < 28; i++) {
+                        for (let j = 0; j < 28; j++) {
+                            const cell = document.getElementById(
+                                `cell-${i}-${j}`,
+                            );
+                            const intensity = parseFloat(
+                                cell.style.backgroundColor?.split(",")[3] || 0,
+                            );
+                            data.push(intensity);
+                        }
+                    }
+
+                    // 显示生成的数组（一行形式）
+                    const dataString = JSON.stringify(data).replace(/\s+/g, "");
+                    document.getElementById("data-display").innerText =
+                        dataString;
+
+                    // 发送数据到后台
+                    fetch("/recognize", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ data }),
+                    })
+                        .then((response) => response.json())
+                        .then((result) => {
+                            document.getElementById("result").innerText =
+                                `识别结果: ${result.number}`;
+                        })
+                        .catch((error) => {
+                            console.error("Error:", error);
+                        });
+                });
+
+            // 复制数据到剪贴板
+            document
+                .getElementById("copy-button")
+                .addEventListener("click", () => {
+                    const dataString =
+                        document.getElementById("data-display").innerText;
+                    navigator.clipboard
+                        .writeText(dataString)
+                        .then(() => {
+                            alert("Data copied to clipboard!");
+                        })
+                        .catch((error) => {
+                            console.error("Failed to copy data: ", error);
+                        });
+                });
+        </script>
+    </body>
+</html>
